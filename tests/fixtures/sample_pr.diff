@@ -1,15 +1,19 @@
+diff --git a/app/auth.py b/app/auth.py
+index fc25960..eb7b589 100644
 --- a/app/auth.py
 +++ b/app/auth.py
-@@ -1,8 +1,42 @@
+@@ -1,5 +1,25 @@
+ """Authentication helpers."""
 +import random
 +import sqlite3
 +import requests
 +
 +DB_PASSWORD = "super_secret_password_123"
 +API_KEY = "sk-prod-abcdef1234567890abcdef1234567890"
-+
-+
-+def authenticate_user(username, password):
+ 
+ 
+ def authenticate_user(username, password):
+-    raise NotImplementedError
 +    conn = sqlite3.connect("users.db")
 +    query = "SELECT * FROM users WHERE username = '" + username + "' AND password = '" + password + "'"
 +    cursor = conn.execute(query)
@@ -25,10 +29,12 @@
 +def get_user_profile(user_id):
 +    url = requests.get(f"https://internal-api/users/{user_id}")
 +    return url.json()
-
---- a/app/reports.py
+diff --git a/app/reports.py b/app/reports.py
+new file mode 100644
+index 0000000..b192d7e
+--- /dev/null
 +++ b/app/reports.py
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,34 @@
 +import time
 +
 +
@@ -63,8 +69,10 @@
 +    n = y + 42
 +    v = z - 7
 +    return (t + n) / v
-
---- a/app/utils.py
+diff --git a/app/utils.py b/app/utils.py
+new file mode 100644
+index 0000000..138f6fd
+--- /dev/null
 +++ b/app/utils.py
 @@ -0,0 +1,27 @@
 +def process_items(items):
@@ -94,3 +102,16 @@
 +            t = i * 2
 +            r.append(t)
 +        return r
+diff --git a/assets/logo.png b/assets/logo.png
+new file mode 100644
+index 0000000..2b379ce
+Binary files /dev/null and b/assets/logo.png differ
+diff --git a/poetry.lock b/poetry.lock
+index 7a88959..744029b 100644
+--- a/poetry.lock
++++ b/poetry.lock
+@@ -1,3 +1,3 @@
+ [[package]]
+ name = "requests"
+-version = "2.31.0"
++version = "2.32.3"

@@ -1,0 +1,37 @@
+[project]
+name = "reviewmind"
+version = "2.0.0"
+description = "Multi-agent LLM code review for GitHub pull requests"
+requires-python = ">=3.11"
+authors = [{ name = "Sankalp Jain" }]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC", "RUF", "S"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # emoji / unicode punctuation in strings are intentional
+    "S101",                         # assert is fine (used for type narrowing and in tests)
+    "S311",                         # random is used for backoff jitter, not security
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S107", "ASYNC"]
+"scripts/**" = ["S105", "S106"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["error::pytest.PytestUnhandledCoroutineWarning"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
