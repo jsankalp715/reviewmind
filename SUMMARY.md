@@ -72,6 +72,8 @@ Everything below is verified **offline**: GitHub is an `httpx.MockTransport`, an
 - **231 tests pass** on Python 3.13 and 3.11 (`pytest`). Line coverage of `app/` is **97%**.
   Branch coverage is included; CI fails below 85%.
 - `ruff check .` and `ruff format --check .` are clean.
+- **GitHub Actions CI passed on GitHub** for this branch (ruff, pytest on 3.11/3.12/3.13 with the
+  coverage gate, docker build): https://github.com/jsankalp715/reviewmind/actions/runs/38656019101
 - Covered specifically:
   - Signatures: valid, invalid, missing, malformed, tampered, re-serialised, and no secret
     configured.
@@ -110,8 +112,7 @@ This sandbox cannot reach Gemini, and I did not run the app against your GitHub 
 - **GitHub:** the Reviews API post (`event: COMMENT`, `commit_id`), the 422 → issue-comment
   fallback, pagination over real `Link` headers, real rate-limit headers, and your token's
   permissions.
-- **Webhook relays** (smee.io or ngrok) and the CI workflow running on GitHub. CI should run on
-  this push, because the workflow triggers on `upgrade/**`.
+- **Webhook relays** (smee.io or ngrok).
 
 ## 5. Running it tomorrow with your real keys
 
