@@ -123,7 +123,7 @@ def main() -> int:
             resp = client.post("/webhook/github", content=body, headers=headers)
             elapsed = time.perf_counter() - started
             print(f"[2] Signed pull_request webhook      -> HTTP {resp.status_code} {resp.json()}")
-            print(f"    (background review finished {elapsed:.2f}s later; TestClient waits for it)")
+            print(f"    (202 sent first; TestClient also waits for the review: {elapsed:.2f}s)")
 
             dup = client.post("/webhook/github", content=body, headers=headers)
             print(f"[3] Same X-GitHub-Delivery again     -> HTTP {dup.status_code} {dup.json()}")
