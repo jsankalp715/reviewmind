@@ -171,13 +171,15 @@ from agents import SecurityAgent, PerformanceAgent, DocsAgent, TestsAgent
 diff = open("test_diff.txt").read()
 context = {"pr_title": "Add auth and reporting", "repo_full_name": "test/repo"}
 
+
 async def test_all():
     for Agent in [SecurityAgent, PerformanceAgent, DocsAgent, TestsAgent]:
         result = await Agent().review(diff, context)
         print(f"\n=== {result['agent'].upper()} ===")
         print(f"Summary: {result['summary']}")
-        for f in result['findings']:
+        for f in result["findings"]:
             print(f"  [{f['severity'].upper()}] {f['line']}: {f['issue']}")
+
 
 asyncio.run(test_all())
 ```

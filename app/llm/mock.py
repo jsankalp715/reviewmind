@@ -28,7 +28,7 @@ FAULT_MODES = frozenset({"error", "timeout", "garbage", "flaky"})
 _FILE_RE = re.compile(r"^File under review: (\S+)", re.MULTILINE)
 _ALL_FILES_RE = re.compile(r"^Files changed in this PR: (.*)$", re.MULTILINE)
 _DIFF_RE = re.compile(r"<diff[^>]*>\n(.*?)\n</diff>", re.DOTALL)
-_ADDED_RE = re.compile(r"^\s*(\d+) \+ (.*)$")
+_LINE_RE = re.compile(r"^\s*(\d+) ([+ ]) (.*)$")  # numbered added/context lines
 _DEF_RE = re.compile(r"^(\s*)(async\s+)?def\s+(\w+)\s*\(")
 _CLASS_RE = re.compile(r"^(\s*)class\s+(\w+)")
 _FOR_RE = re.compile(r"^(\s*)for\s+\w+.*\bin\b")
@@ -38,17 +38,19 @@ _FOR_RE = re.compile(r"^(\s*)for\s+\w+.*\bin\b")
 class _Line:
     number: int
     text: str
+    added: bool = True
 
     @property
     def indent(self) -> int:
         return len(self.text) - len(self.text.lstrip())
 
 
-def _added_lines(diff: str) -> list[_Line]:
+def _numbered_lines(diff: str) -> list[_Line]:
+    """Added and context lines (removed lines have no new-file number)."""
     out = []
     for raw in diff.splitlines():
-        if m := _ADDED_RE.match(raw):
-            out.append(_Line(int(m.group(1)), m.group(2)))
+        if m := _LINE_RE.match(raw):
+            out.append(_Line(int(m.group(1)), m.group(3), added=m.group(2) == "+"))
     return out
 
 
@@ -281,18 +283,24 @@ def _is_test_file(path: str) -> bool:
 
 
 def _tests(file: str, lines: list[_Line], all_files: list[str]) -> list[dict[str, Any]]:
+    """Flag public functions that are new or have changed lines, when the PR adds no tests."""
     if _is_test_file(file) or any(_is_test_file(f) for f in all_files):
         return []
-    out = []
     risky = re.compile(r"auth|login|password|token|session|payment|config|score", re.I)
+    changed: dict[str, int] = {}  # function name -> def line
+    current: tuple[str, int, int] | None = None  # (name, def line, indent)
     for ln in lines:
-        m = _DEF_RE.match(ln.text)
-        if not m or m.group(3).startswith("_"):
-            continue
-        name = m.group(3)
+        if (m := _DEF_RE.match(ln.text)) is not None:
+            current = (m.group(3), ln.number, len(m.group(1)))
+        elif current and ln.text.strip() and ln.indent <= current[2]:
+            current = None  # dedented out of the function body
+        if current and ln.added and not current[0].startswith("_"):
+            changed.setdefault(current[0], current[1])
+    out = []
+    for name, line in changed.items():
         severity = "high" if risky.search(name) else "medium"
         out.append(_finding(
-            file, ln.number, severity, f"No tests for `{name}`",
+            file, line, severity, f"No tests for `{name}`",
             f"`{name}` is new or changed, and this PR contains no test changes covering it.",
             f"Add `test_{name}` covering the happy path, empty/None input, and the error path.",
         ))  # fmt: skip
@@ -354,8 +362,10 @@ class MockLLMClient(LLMClient):
         files_match = _ALL_FILES_RE.search(request.prompt)
         file = file_match.group(1) if file_match else "unknown"
         all_files = [f.strip() for f in files_match.group(1).split(",")] if files_match else []
-        lines = _added_lines(diff_match.group(1)) if diff_match else []
+        lines = _numbered_lines(diff_match.group(1)) if diff_match else []
         rule = HEURISTICS.get(request.agent)
+        if request.agent != "tests":  # the other heuristics only look at added lines
+            lines = [ln for ln in lines if ln.added]
         findings = rule(file, lines, all_files) if rule else []
         summary = (
             f"{len(findings)} {request.agent} issue(s) found in {file}."

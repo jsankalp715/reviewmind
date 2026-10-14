@@ -26,7 +26,10 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 addopts = "-q"
-filterwarnings = ["error::pytest.PytestUnhandledCoroutineWarning"]
+filterwarnings = [
+    # Starlette 1.x nudges TestClient users towards httpx2; httpx is what the app itself uses.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
 
 [tool.coverage.run]
 source = ["app"]
