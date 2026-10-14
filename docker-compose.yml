@@ -1,0 +1,15 @@
+services:
+  reviewmind:
+    build: .
+    image: reviewmind:latest
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/reviewmind.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - reviewmind-data:/data
+    restart: unless-stopped
+
+volumes:
+  reviewmind-data:
