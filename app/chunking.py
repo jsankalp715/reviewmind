@@ -152,7 +152,9 @@ def annotate_hunk(hunk: str) -> list[str]:
 def _split_oversized_hunk(lines: list[str], max_chars: int) -> list[str]:
     """Split one annotated hunk on line boundaries, repeating the header on each piece."""
     header, body = lines[0], lines[1:]
-    budget = max(max_chars - len(header) - 20, 1)
+    # Hunk headers carry function context and can be long; keep them to a quarter of the budget.
+    header = header[: max_chars // 4]
+    budget = max(max_chars - len(header) - 20, 40)
     pieces: list[str] = []
     current: list[str] = []
     size = 0

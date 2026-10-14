@@ -166,7 +166,8 @@ def make_client(
     clients: list[TestClient] = []
 
     def _make(**overrides: Any) -> TestClient:
-        app_settings = settings.model_copy(update=overrides) if overrides else settings
+        # Re-validate (model_copy would skip validation, e.g. leave secrets as plain str).
+        app_settings = Settings(_env_file=None, **{**settings.model_dump(), **overrides})
         app = create_app(app_settings, llm=mock_llm, github=fake_github.client())
         client = TestClient(app)
         client.__enter__()

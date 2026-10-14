@@ -77,6 +77,15 @@ class ReviewPipeline:
     async def run(self, review_id: int, ctx: PRContext) -> ReviewResult | None:
         """Background-task entry point. Never raises; the outcome is recorded in the database."""
         bind_log_context(review_id=review_id, repo=ctx.repo_full_name, pr=ctx.pr_number)
+        try:
+            return await self._run(review_id, ctx)
+        except Exception:
+            # Last resort (e.g. the database itself failed). The row stays queued/running and
+            # is marked failed at the next startup, so a redelivery can retry it.
+            logger.exception("review crashed")
+            return None
+
+    async def _run(self, review_id: int, ctx: PRContext) -> ReviewResult | None:
         started = time.perf_counter()
         await self.repository.set_status(review_id, "running")
         try:

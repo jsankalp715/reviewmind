@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import Field, SecretStr, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 APP_VERSION = "2.0.0"
 
@@ -34,7 +35,8 @@ class Settings(BaseSettings):
     agent_max_retries: int = Field(default=1, ge=0, le=5)
     agent_retry_backoff_seconds: float = Field(default=1.0, ge=0)
     llm_max_concurrency: int = Field(default=4, ge=1, le=64)
-    enabled_agents: list[str] = Field(
+    # Accepts JSON (`["security","tests"]`) or a comma-separated list (`security,tests`).
+    enabled_agents: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["security", "performance", "documentation", "tests"]
     )
 
@@ -53,11 +55,26 @@ class Settings(BaseSettings):
     github_backoff_max_seconds: float = Field(default=60.0, ge=0)
     post_reviews: bool = True
 
+    # Bearer token for the read API (GET /reviews*). Reviews describe code in your repos, so
+    # set this whenever the server is reachable by anyone else. /health stays public.
+    api_token: SecretStr | None = None
+    max_webhook_body_bytes: int = Field(default=25 * 1024 * 1024, ge=1024)  # GitHub's cap
+
     # --- Storage / server ------------------------------------------------------------------
     database_path: str = "reviewmind.db"
     log_level: str = "INFO"
     log_format: Literal["json", "text"] = "json"
     port: int = 8000
+
+    @field_validator("enabled_agents", mode="before")
+    @classmethod
+    def _parse_agents(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            text = value.strip()
+            if text.startswith("["):
+                return json.loads(text)
+            return [part.strip() for part in text.split(",") if part.strip()]
+        return value
 
     @model_validator(mode="after")
     def _check_provider_credentials(self) -> Settings:

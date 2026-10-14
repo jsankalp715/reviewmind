@@ -188,7 +188,7 @@ def render_markdown(
         if degraded:
             out += ["", "### ⚠️ Degraded agents", "", "| Agent | Reason |", "|---|---|"]
             out += [
-                f"| {_agent_label(r.agent)} | {_cell(r.error or 'unknown error')} |"
+                f"| {_agent_label(r.agent)} | {_cell((r.error or 'unknown error')[:300])} |"
                 for r in degraded
             ]
 

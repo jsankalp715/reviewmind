@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -11,7 +12,7 @@ from dataclasses import dataclass
 from functools import cache
 from typing import Any
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.agents import build_agents
@@ -79,6 +80,8 @@ def create_app(
         app.state.rm = state
         if not settings.webhook_secret:
             logger.error("GITHUB_WEBHOOK_SECRET is not set: every webhook will be rejected")
+        if not settings.api_token:
+            logger.warning("API_TOKEN is not set: GET /reviews is readable without auth")
         logger.info(
             "ReviewMind started",
             extra={"version": APP_VERSION, "llm_provider": settings.llm_provider,
@@ -116,7 +119,12 @@ def create_app(
             # Fail closed: without a secret we cannot authenticate the sender.
             raise HTTPException(status_code=503, detail="webhook secret not configured")
 
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > st.settings.max_webhook_body_bytes:
+            raise HTTPException(status_code=413, detail="payload too large")
         body = await request.body()  # raw bytes, exactly as signed by GitHub
+        if len(body) > st.settings.max_webhook_body_bytes:
+            raise HTTPException(status_code=413, detail="payload too large")
         if not verify_signature(secret, body, request.headers.get("X-Hub-Signature-256")):
             raise HTTPException(status_code=401, detail="invalid or missing signature")
 
@@ -166,7 +174,17 @@ def create_app(
         "/webhook", github_webhook, methods=["POST"], status_code=202, include_in_schema=False
     )
 
-    @app.get("/reviews")
+    def require_api_token(request: Request) -> None:
+        token = state(request).settings.api_token
+        if token is None or not token.get_secret_value():
+            return
+        supplied = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if not hmac.compare_digest(supplied.encode(), token.get_secret_value().encode()):
+            raise HTTPException(
+                status_code=401, detail="invalid API token", headers={"WWW-Authenticate": "Bearer"}
+            )
+
+    @app.get("/reviews", dependencies=[Depends(require_api_token)])
     async def list_reviews(
         request: Request,
         limit: int = Query(20, ge=1, le=100),
@@ -179,7 +197,7 @@ def create_app(
         )
         return {"reviews": reviews, "limit": limit, "offset": offset}
 
-    @app.get("/reviews/{review_id}")
+    @app.get("/reviews/{review_id}", dependencies=[Depends(require_api_token)])
     async def get_review(request: Request, review_id: int) -> dict[str, Any]:
         review = await state(request).repository.get_review(review_id)
         if review is None:
