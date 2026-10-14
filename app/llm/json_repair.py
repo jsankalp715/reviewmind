@@ -80,7 +80,9 @@ def extract_json(text: str) -> Any:
                 return json.loads(attempt)
             except json.JSONDecodeError:
                 continue
-    raise InvalidLLMOutput(f"no valid JSON found in response: {text[:120]!r}")
+    # The raw text goes to the debug log only: the error message ends up in the posted review.
+    logger.debug("unparseable model output", extra={"raw": text[:500]})
+    raise InvalidLLMOutput("no valid JSON found in response")
 
 
 def parse_review_response(text: str) -> LLMReviewResponse:

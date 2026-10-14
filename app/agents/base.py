@@ -177,19 +177,19 @@ class ReviewAgent:
             *(self.review_chunk(c, ctx, all_files) for c in chunks), return_exceptions=True
         )
         findings: list[Finding] = []
-        errors: list[str] = []
+        errors: dict[str, list[str]] = {}  # error message -> chunk labels that hit it
         summaries: list[str] = []
         attempts = tokens = failed = 0
         for chunk, result in zip(chunks, results, strict=True):
             if isinstance(result, BaseException):
                 failed += 1
-                errors.append(f"{chunk.label}: {type(result).__name__}: {result}")
+                errors.setdefault(f"{type(result).__name__}: {result}", []).append(chunk.label)
                 continue
             attempts += result.attempts
             tokens += result.tokens
             if result.error:
                 failed += 1
-                errors.append(f"{chunk.label}: {result.error}")
+                errors.setdefault(result.error, []).append(chunk.label)
             else:
                 findings.extend(f.model_copy(update={"agent": self.name}) for f in result.findings)
                 if result.summary:
@@ -198,10 +198,9 @@ class ReviewAgent:
         status = AgentStatus.DEGRADED if failed else AgentStatus.OK
         error = None
         if failed:
-            shown = "; ".join(errors[:3]) + (
-                f"; (+{len(errors) - 3} more)" if len(errors) > 3 else ""
+            error = f"{failed}/{len(chunks)} chunk(s) failed after retry: " + "; ".join(
+                _describe(message, labels) for message, labels in errors.items()
             )
-            error = f"{failed}/{len(chunks)} chunk(s) failed after retry — {shown}"
         return AgentRun(
             agent=self.name,
             status=status,
@@ -214,3 +213,10 @@ class ReviewAgent:
             chunks_failed=failed,
             token_estimate=tokens,
         )
+
+
+def _describe(message: str, labels: list[str], max_labels: int = 3) -> str:
+    """``"timed out after 60s (a.py, b.py +2 more)"`` — identical errors are grouped."""
+    shown = ", ".join(labels[:max_labels])
+    more = f" +{len(labels) - max_labels} more" if len(labels) > max_labels else ""
+    return f"{message} ({shown}{more})"
